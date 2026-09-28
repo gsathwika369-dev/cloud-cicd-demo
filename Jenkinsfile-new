@@ -1,0 +1,78 @@
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'M3'
+        jdk 'JDK17'
+    }
+
+    parameters {
+        choice(
+            name: 'BUILD_PROFILE',
+            choices: ['dev', 'prod'],
+            description: 'Maven profile to activate'
+        )
+
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip unit tests'
+        )
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo 'Code checked out successfully'
+            }
+        }
+
+        stage('Validate') {
+            steps {
+                sh 'mvn validate'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh "mvn compile -P${params.BUILD_PROFILE}"
+            }
+        }
+
+        stage('Unit Test') {
+            when {
+                expression {
+                    return !params.SKIP_TESTS
+                }
+            }
+            steps {
+                sh "mvn test -P${params.BUILD_PROFILE}"
+            }
+            post {
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                script {
+                    def skipFlag = params.SKIP_TESTS ? '-DskipTests' : ''
+                    sh "mvn package -P${params.BUILD_PROFILE} ${skipFlag}"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build completed successfully!'
+        }
+        failure {
+            echo 'Build failed. Check console output.'
+        }
+    }
+}
