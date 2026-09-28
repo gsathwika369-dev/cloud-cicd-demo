@@ -1,16 +1,10 @@
+
 pipeline {
     agent any
 
     tools {
         maven 'M3'
         jdk 'JDK17'
-    }
-
-    options {
-        timeout(time: 20, unit: 'MINUTES')
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        timestamps()
-        disableConcurrentBuilds()
     }
 
     parameters {
@@ -23,28 +17,15 @@ pipeline {
         booleanParam(
             name: 'SKIP_TESTS',
             defaultValue: false,
-            description: 'DANGEROUS: skip unit tests'
+            description: 'Skip unit tests'
         )
     }
 
-    environment {
-        APP_NAME = 'myapp'
-    }
-
-    triggers {
-        githubPush()
-    }
-
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
-                sh '''
-                    echo "Branch : ${GIT_BRANCH}"
-                    echo "Commit : ${GIT_COMMIT}"
-                    echo "Build : ${BUILD_NUMBER}"
-                '''
+                echo 'Code checked out successfully'
             }
         }
 
@@ -66,11 +47,9 @@ pipeline {
                     return !params.SKIP_TESTS
                 }
             }
-
             steps {
                 sh "mvn test -P${params.BUILD_PROFILE}"
             }
-
             post {
                 always {
                     junit 'target/surefire-reports/*.xml'
@@ -82,4 +61,21 @@ pipeline {
             steps {
                 script {
                     def skipFlag = params.SKIP_TESTS ? '-DskipTests' : ''
-                    sh "mvn package -P${params
+                    sh "mvn package -P${params.BUILD_PROFILE} ${skipFlag}"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build completed successfully!'
+        }
+        failure {
+            echo 'Build failed. Check console output.'
+        }
+        always {
+            echo 'Pipeline execution completed.'
+        }
+    }
+}
